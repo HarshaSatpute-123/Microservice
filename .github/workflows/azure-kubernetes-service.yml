@@ -1,0 +1,47 @@
+name: CI/CD to AKS
+on:
+ push:
+   branches: [ "main" ]
+jobs:
+ build-deploy:
+   runs-on: ubuntu-latest
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v3
+   # Login to ACR
+   - name: Login to ACR
+     run: |
+       echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
+         --username "${{ secrets.ACR_USERNAME }}" --password-stdin
+   # Build Docker image
+   - name: Build Docker image
+     run: |
+       IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/placeholder:${{ github.sha }}
+       docker build -t $IMAGE .
+       echo "Image built: $IMAGE"
+   # Push Docker image
+   - name: Push Docker image
+     run: |
+       IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/placeholder:${{ github.sha }}
+       docker push $IMAGE
+       echo "Image pushed: $IMAGE"
+   # Setup kubectl
+   - name: Setup kubectl
+     uses: azure/setup-kubectl@v3
+   # Load kubeconfig from secret
+   - name: Load kubeconfig
+     run: |
+       echo "${{ secrets.KUBECONFIG }}" > kubeconfig
+       export KUBECONFIG=$(pwd)/kubeconfig
+   # Apply deployment and service YAML
+   - name: Deploy to AKS
+     run: |
+       kubectl apply -f deployment.yaml
+       kubectl apply -f service.yaml
+   # Update image dynamically using deployment YAML info
+   - name: Update container image dynamically
+     run: |
+       DEPLOYMENT_NAME=$(kubectl get deployment -o jsonpath='{.items[0].metadata.name}')
+       CONTAINER_NAME=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].name}')
+       IMAGE=${{ secrets.ACR_LOGIN_SERVER }}/placeholder:${{ github.sha }}
+       kubectl set image deployment/$DEPLOYMENT_NAME $CONTAINER_NAME=$IMAGE
