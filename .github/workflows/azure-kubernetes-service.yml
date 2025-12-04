@@ -78,4 +78,3 @@ jobs:
 
           kubectl -n "$NAMESPACE" set image deployment/$DEPLOYMENT_NAME $CONTAINER_NAME="$IMAGE" --kubeconfig "$KUBECONFIG"
           kubectl -n "$NAMESPACE" rollout status deployment/$DEPLOYMENT_NAME --timeout=180s --kubeconfig "$KUBECONFIG"
-``
