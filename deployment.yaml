@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: placeholder-deployment   # Deployment name
+ labels:
+   app: placeholder
+spec:
+ replicas: 1
+ selector:
+   matchLabels:
+     app: placeholder
+ template:
+   metadata:
+     labels:
+       app: placeholder
+   spec:
+     containers:
+     - name: placeholder-container   # Container name
+       image: placeholder:latest    # Will be updated dynamically
+       ports:
+       - containerPort: 80
+       resources:
+         requests:
+           cpu: "100m"
+           memory: "128Mi"
+         limits:
+           cpu: "500m"
+           memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: placeholder-service       # Service name
+spec:
+ type: LoadBalancer
+ selector:
+   app: placeholder
+ ports:
+   - protocol: TCP
+     port: 80
+     targetPort: 80
