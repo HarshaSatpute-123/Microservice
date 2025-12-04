@@ -100,4 +100,3 @@ jobs:
           echo "Updating deployment '$DEPLOYMENT_NAME' container '$CONTAINER_NAME' to image '$IMAGE'"
           kubectl set image "deployment/$DEPLOYMENT_NAME" "$CONTAINER_NAME=$IMAGE" --record
           kubectl rollout status "deployment/$DEPLOYMENT_NAME" --timeout=180s
-``
