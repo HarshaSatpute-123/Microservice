@@ -16,7 +16,7 @@ spec:
    spec:
      containers:
        - name: webapp
-         image: IMAGE_PLACEHOLDER
+         image: IMAGE_WEBAPP
          ports:
            - containerPort: 80
 ---
