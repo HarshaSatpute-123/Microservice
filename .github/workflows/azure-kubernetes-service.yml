@@ -1,102 +1,57 @@
-
-name: CI/CD to AKS
-
+name: Build and Deploy to AKS
 on:
-  push:
-    branches: [ "main" ]
-
+ push:
+   branches:
+     - main
+env:
+ IMAGE_NAME: webapp     # <-- NAME OF YOUR IMAGE (keep simple)
+ DEPLOY_FILE: deploy-service.yaml
 jobs:
-  build-deploy:
-    runs-on: ubuntu-latest
-
-    # Persist KUBECONFIG across steps
-    env:
-      KUBECONFIG: ${{ github.workspace }}/kubeconfig
-      IMAGE_NAME: placeholder   # TODO: change to your ACR repo name (e.g., webapp)
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # Login to ACR
-      - name: Login to ACR
-        shell: bash
-        run: |
-          echo "${{ secrets.ACR_PASSWORD }}" | docker login "${{ secrets.ACR_LOGIN_SERVER }}" \
-            --username "${{ secrets.ACR_USERNAME }}" --password-stdin
-
-      # Build Docker image
-      - name: Build Docker image
-        shell: bash
-        run: |
-          IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          docker build -t "$IMAGE" .
-          echo "Image built: $IMAGE"
-
-      # Push Docker image
-      - name: Push Docker image
-        shell: bash
-        run: |
-          IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          docker push "$IMAGE"
-          echo "Image pushed: $IMAGE"
-
-      # Setup kubectl
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-
-      # Load kubeconfig from secret (supports base64 or plain YAML)
-      - name: Load kubeconfig
-        shell: bash
-        run: |
-          # Try decoding as base64; fallback to plain text
-          if echo "${{ secrets.KUBECONFIG }}" | base64 -d 2>/dev/null | grep -q "apiVersion: v1"; then
-            echo "Decoding base64 kubeconfig"
-            echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
-          else
-            echo "Writing plain-text kubeconfig"
-            printf "%s" "${{ secrets.KUBECONFIG }}" > "$KUBECONFIG"
-          fi
-          chmod 600 "$KUBECONFIG"
-          echo "Kubeconfig size:"
-          wc -c "$KUBECONFIG"
-
-      # Explicitly set the current context to your AKS context
-      - name: Set current context to akscluster
-        shell: bash
-        run: |
-          echo "Contexts available:"
-          kubectl config get-contexts || true
-          echo "Setting current context to 'akscluster'"
-          kubectl config use-context akscluster
-          kubectl config set-context --current --namespace default
-          echo "Current context:"
-          kubectl config current-context
-
-      # Diagnostics to confirm cluster connectivity
-      - name: Verify kubectl and cluster
-        shell: bash
-        run: |
-          set -e
-          kubectl version --short || true
-          kubectl cluster-info
-          kubectl get ns | head -n 10
-
-      # Apply manifests
-      - name: Deploy to AKS
-        shell: bash
-        run: |
-          kubectl apply -f deployment.yaml
-
-      # Update image deterministically
-      - name: Update container image
-        shell: bash
-        run: |
-          # Prefer: set your deployment name to avoid ambiguity
-          # DEPLOYMENT_NAME="my-app-deployment"
-          DEPLOYMENT_NAME="${DEPLOYMENT_NAME:-$(kubectl get deployment -o jsonpath='{.items[0].metadata.name}')}"
-          CONTAINER_NAME="$(kubectl get deployment "$DEPLOYMENT_NAME" -o jsonpath='{.spec.template.spec.containers[0].name}')"
-          IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "Updating deployment '$DEPLOYMENT_NAME' container '$CONTAINER_NAME' to image '$IMAGE'"
-          kubectl set image "deployment/$DEPLOYMENT_NAME" "$CONTAINER_NAME=$IMAGE" --record
-          kubectl rollout status "deployment/$DEPLOYMENT_NAME" --timeout=180s
+ build-and-deploy:
+   runs-on: ubuntu-latest
+   steps:
+   # ---------------------------
+   # CHECKOUT CODE
+   # ---------------------------
+   - name: Checkout repository
+     uses: actions/checkout@v4
+   # ---------------------------
+   # LOGIN TO ACR
+   # ---------------------------
+   - name: Login to Azure Container Registry
+     uses: docker/login-action@v3
+     with:
+       registry: ${{ secrets.ACR_LOGIN_SERVER }}
+       username: ${{ secrets.ACR_USERNAME }}
+       password: ${{ secrets.ACR_PASSWORD }}
+   # ---------------------------
+   # BUILD & PUSH IMAGE
+   # ---------------------------
+   - name: Build and push image
+     run: |
+       TAG=${{ secrets.ACR_LOGIN_SERVER }}/${IMAGE_NAME}:${{ github.run_number }}
+       echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+       docker build -t $TAG .
+       docker push $TAG
+   # ---------------------------
+   # INSTALL KUBECTL
+   # ---------------------------
+   - name: Install kubectl
+     uses: azure/setup-kubectl@v4
+     with:
+       version: 'latest'
+   # ---------------------------
+   # SETUP KUBECONFIG FROM SECRET
+   # ---------------------------
+   - name: Configure kubeconfig
+     run: |
+       echo "${{ secrets.KUBECONFIG16 }}" > kubeconfig
+       export KUBECONFIG=kubeconfig
+   # ---------------------------
+   # DEPLOY TO AKS
+   # ---------------------------
+   - name: Deploy to AKS
+     run: |
+       sed -i "s|IMAGE_PLACEHOLDER|${IMAGE_TAG}|g" $DEPLOY_FILE
+       kubectl apply -f $DEPLOY_FILE
+       kubectl rollout status deployment/webapp-deploy
