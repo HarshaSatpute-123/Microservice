@@ -35,7 +35,7 @@ jobs:
    # Configure kubeconfig
    - name: Configure kubeconfig
      run: |
-       echo "${{ secrets.KUBECONFIG16 }}" > kubeconfig
+       echo "${{ secrets.KUBECONFIG }}" > kubeconfig
        echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
    # Deploy
    - name: Deploy to AKS
