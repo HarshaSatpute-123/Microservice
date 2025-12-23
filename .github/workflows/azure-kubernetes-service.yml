@@ -20,7 +20,7 @@ jobs:
        registry: ${{ secrets.ACR_LOGIN_SERVER }}
        username: ${{ secrets.ACR_USERNAME }}
        password: ${{ secrets.ACR_PASSWORD }}
-   # Build & Push Image
+   # Build & Push Images
    - name: Build and push image
      run: |
        TAG=${{ secrets.ACR_LOGIN_SERVER }}/${IMAGE_NAME}:${{ github.run_number }}
